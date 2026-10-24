@@ -2,6 +2,8 @@
 
 Claude Code mods by Bao.
 
+![context-bar](docs/context-bar.png)
+
 | Mod | What it does |
 |---|---|
 | `context-bar` | A colored context-window bar above the prompt, broken down by category (System Prompt, Tools, MCP Tools, …). Also shows plan usage badges — `Usage` (5-hour session) and `Week` (7-day) — with their reset times. Badge colors: green < 50%, yellow < 80%, red ≥ 80%. Toggle with `/context-bar`. |
