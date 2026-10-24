@@ -7,6 +7,12 @@ const FILES: Record<string, string> = {
     '---\nname: release-notes\ndescription: "Turns the commits since the last tag into release notes"\nmodel: haiku\n---\nBody.',
 }
 
+// Windows ではエンジンがパスを C:\repo\... に正規化するので、POSIX 形式に戻して比較する
+const posix = (e: unknown): string =>
+  String((e as { path: string }).path)
+    .replace(/\\/g, '/')
+    .replace(/^[A-Za-z]:/, '')
+
 const PANE = (cols: number) => ({
   title: 'Agents',
   isFocused: false,
@@ -24,7 +30,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
     on('session.start', () => ({ cwd: '/repo' }))
     on('session.cwd', () => ({ value: '/repo' }) as never)
     on('command.register', (_$, e) => ({ value: { command: (e as { name: string }).name } }) as never)
-    on('fs.exists', (_$, e) => ({ value: String((e as { path: string }).path) === '/repo/.claude/agents' }) as never)
+    on('fs.exists', (_$, e) => ({ value: posix(e) === '/repo/.claude/agents' }) as never)
     on('fs.list', () => ({
       value: [
         { name: 'release-notes.md', kind: 'file', size: 1 },
@@ -32,7 +38,7 @@ for (const surface of ['terminal', 'desktop'] as const) {
         { name: 'notes.txt', kind: 'file', size: 1 },
       ],
     }) as never)
-    on('fs.read', (_$, e) => ({ value: FILES[(e as { path: string }).path] ?? '' }) as never)
+    on('fs.read', (_$, e) => ({ value: FILES[posix(e)] ?? '' }) as never)
     on('ui.open', () => ({ value: { isPlaced: true } }) as never)
     const toasts: string[] = []
     on('ui.toast', (_$, e) => (toasts.push(String((e as { text: string }).text)), { value: undefined }) as never)
@@ -55,7 +61,9 @@ for (const surface of ['terminal', 'desktop'] as const) {
       requestId: 'agents-panel',
       props: PANE(100) as never,
     })
-    expect((await pane.findAll({ text: 'code-reviewer' })).length).toBeGreaterThan(0)
+    // 空の一覧の案内文にも「code-reviewer」が含まれるので、行の key で確かめる
+    expect(await pane.find({ key: 'agent-code-reviewer' })).toBeDefined()
+    expect(await pane.find({ key: 'agent-release-notes' })).toBeDefined()
     expect((await pane.findAll({ text: /release notes/ })).length).toBeGreaterThan(0)
     expect((await pane.findAll({ text: 'notes.txt' })).length).toBe(0)
 
