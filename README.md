@@ -1,5 +1,7 @@
 # claude-mods
 
+**English** | [简体中文](README.zh-CN.md) | [日本語](README.ja.md)
+
 Claude Code mods by Bao: a context-window bar with plan usage, and a subagents panel.
 
 ![context-bar](docs/context-bar.png)
