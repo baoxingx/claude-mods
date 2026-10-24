@@ -50,6 +50,28 @@ export function limitUsage(
   return limit ? { percent: Math.round(limit.percentUsed), resetsAt: limit.resetsAt ?? null } : null
 }
 
+// 保存済みの値は、リセット時刻を過ぎていなければまだ有効
+export function stillValid(limit: Limit | null | undefined, now: number): Limit | null {
+  if (!limit?.resetsAt) return null
+  const at = Date.parse(limit.resetsAt)
+  return Number.isNaN(at) || at <= now ? null : limit
+}
+
+// 最新の値があれば保存して使い、なければ（リロード直後や fork 直後など）前回保存した値で補う
+async function resolveLimits(
+  $: EngineInterface,
+  rateLimits: readonly { kind: string; percentUsed: number; resetsAt?: string }[],
+): Promise<{ usage: Limit | null; weekly: Limit | null }> {
+  const fresh = { usage: limitUsage(rateLimits, 'five_hour'), weekly: limitUsage(rateLimits, 'seven_day') }
+  if (fresh.usage || fresh.weekly) {
+    await $.store.set('limits', fresh)
+    return fresh
+  }
+  const saved = (await $.store.get('limits')) as { usage?: Limit | null; weekly?: Limit | null } | undefined
+  const now = await $.clock.now()
+  return { usage: stillValid(saved?.usage, now), weekly: stillValid(saved?.weekly, now) }
+}
+
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
 // リセット時刻をローカル時間で表示する（週間枠は曜日付き）
@@ -84,6 +106,7 @@ async function refresh($: EngineInterface): Promise<void> {
     // Keep the bar's order stable: the known categories first, in their order
     segments.sort((a, z) => rank(a.label) - rank(z.label))
     const used = segments.reduce((sum, s) => sum + s.tokens, 0)
+    const limits = await resolveLimits($, usage.rateLimits)
     const next: Snapshot = {
       used,
       window,
@@ -91,8 +114,7 @@ async function refresh($: EngineInterface): Promise<void> {
       percent: pct(used, window),
       segments,
       free,
-      usage: limitUsage(usage.rateLimits, 'five_hour'),
-      weekly: limitUsage(usage.rateLimits, 'seven_day'),
+      ...limits,
     }
     await update($, snapshot, () => next)
   } catch {
@@ -141,9 +163,8 @@ export const register: Register = on => {
   on('session.measure', async ($, e, next) => {
     const result = await next(e)
     if (e.changed.includes('rateLimits')) {
-      const usage = limitUsage(e.rateLimits, 'five_hour')
-      const weekly = limitUsage(e.rateLimits, 'seven_day')
-      await update($, snapshot, s => (s ? { ...s, usage, weekly } : s))
+      const limits = await resolveLimits($, e.rateLimits)
+      await update($, snapshot, s => (s ? { ...s, ...limits } : s))
     }
     return result
   }).catch(($, e, next) => next(e))

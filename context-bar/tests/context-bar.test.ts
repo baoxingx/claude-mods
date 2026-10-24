@@ -78,3 +78,26 @@ for (const surface of ['terminal', 'desktop'] as const) {
     expect(hidden.text).toBe('Context bar hidden.')
   })
 }
+
+// リロード直後は rateLimits が空なので、保存済みでリセット前の値だけを表示する
+test('plan usage falls back to the last saved values until they reset', async ($, on) => {
+  mock.store(on, {
+    isShown: true,
+    limits: {
+      usage: { percent: 37, resetsAt: '2026-10-24T05:30:00Z' },
+      weekly: { percent: 64, resetsAt: '2026-10-20T11:00:00Z' },
+    },
+  })
+  mock.clock(on, { now: Date.parse('2026-10-24T00:00:00Z') })
+  on('session.usage', () => ({ value: { ...USAGE, rateLimits: [] } }) as never)
+  on('session.start', () => ({ cwd: '/tmp/p' }))
+  on('command.register', e => ({ value: { command: (e as { name: string }).name } }) as never)
+  on('ui.render', ($, e) => $.ui.resolve(e as never).Box({}) as never)
+  await $.session.start({ cwd: '/tmp/p', surface: 'terminal' } as never)
+  await $.command.run({ command: 'context-bar', args: 'on' } as never)
+
+  const band = await $.ui.mount({ plugin: 'context-bar', surface: 'terminal', component: 'AbovePrompt', props: BAND as never })
+  expect((await band.findAll({ text: ' 37% ' })).length).toBeGreaterThan(0)
+  // 週間枠はリセット時刻を過ぎているので表示しない
+  expect(await band.findAll({ text: /Week/ })).toHaveLength(0)
+})
