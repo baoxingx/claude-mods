@@ -1,0 +1,19 @@
+{
+  "name": "baoxingx-mods",
+  "description": "Claude Code mods by Bao: context-window bar with plan usage, subagents panel",
+  "owner": {
+    "name": "Bao"
+  },
+  "plugins": [
+    {
+      "name": "context-bar",
+      "source": "./context-bar",
+      "description": "A colored context-window bar above the prompt, broken down by category, with plan usage (session / week) and reset times (/context-bar to toggle)"
+    },
+    {
+      "name": "agents-panel",
+      "source": "./agents-panel",
+      "description": "A pane listing this project's subagents with a run button and live status (/agents-panel to toggle)"
+    }
+  ]
+}
